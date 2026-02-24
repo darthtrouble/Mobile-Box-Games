@@ -32,8 +32,17 @@ public class GameBoxData
     [HideInInspector] public Vector3 paperOriginalLocalPos;
     [HideInInspector] public Vector3 paperOriginalLocalRot;
 
+    [HideInInspector] public Vector3 boxOriginalPos;
+    [HideInInspector] public Vector3 boxOriginalRot;
+
     public void SaveOriginalPoses()
     {
+        if (boxRoot != null)
+        {
+            boxOriginalPos = boxRoot.transform.position;
+            boxOriginalRot = boxRoot.transform.eulerAngles;
+        }
+
         if (boxLid != null) lidOriginalLocalPos = boxLid.localPosition;
         if (lobbyPaper != null)
         {
@@ -74,6 +83,7 @@ public class DiegeticMenuController : MonoBehaviour
     private int currentGameIndex = 0;
     private bool inPlayMode = false; // Tracks if we are looking at boxes
     private bool isAtTable = false;  // Tracks if the intro has finished
+    private bool isAnimatingIntro = false; // Locks input during the intro sequence
 
     [Header("Lid Animation Offsets")]
     [Tooltip("How high the lid lifts up first")]
@@ -107,7 +117,7 @@ public class DiegeticMenuController : MonoBehaviour
 
     void Update()
     {
-        if (Keyboard.current == null) return;
+        if (Keyboard.current == null || isAnimatingIntro) return;
 
         // Title Screen -> Table Transition
         if (Keyboard.current.spaceKey.wasPressedThisFrame && !isAtTable)
@@ -140,13 +150,16 @@ public class DiegeticMenuController : MonoBehaviour
         }
 
         // Pick up items (Only if not in play mode)
-        if (Keyboard.current.sKey.wasPressedThisFrame && !inPlayMode)
+        if (!inPlayMode)
         {
-            InspectItem(tabletItem); 
-        }
-        if (Keyboard.current.mKey.wasPressedThisFrame && !inPlayMode)
-        {
-            InspectItem(magazineItem); 
+            if (Keyboard.current.sKey.wasPressedThisFrame)
+            {
+                InspectItem(tabletItem); 
+            }
+            if (Keyboard.current.mKey.wasPressedThisFrame)
+            {
+                InspectItem(magazineItem); 
+            }
         }
 
         // Put items down / Go back
@@ -170,6 +183,7 @@ public class DiegeticMenuController : MonoBehaviour
         if (mainCam == null || cameraTablePoint == null) return;
 
         isAtTable = true;
+        isAnimatingIntro = true;
         CameraBob camBob = mainCam.GetComponent<CameraBob>();
 
         if (camBob != null)
@@ -205,6 +219,7 @@ public class DiegeticMenuController : MonoBehaviour
                 camBob.initialPosition = mainCam.transform.localPosition;
                 camBob.initialRotation = mainCam.transform.localEulerAngles;
                 camBob.isEnabled = true;
+                isAnimatingIntro = false;
             });
         }
     }
@@ -212,9 +227,36 @@ public class DiegeticMenuController : MonoBehaviour
     public void InspectItem(InteractableItem item)
     {
         if (item == null || item.itemModel == null || inspectPoint == null) return;
-        currentInspectedItem = item;
-        item.itemModel.transform.DOMove(inspectPoint.position, 0.5f).SetEase(Ease.OutQuad);
-        item.itemModel.transform.DORotate(inspectPoint.eulerAngles, 0.5f).SetEase(Ease.OutQuad);
+        
+        // If we are already inspecting this exact item, we might want to just close it, 
+        // essentially making the hotkey a toggle.
+        if (currentInspectedItem == item)
+        {
+            CloseInspectedItem();
+            return;
+        }
+
+        // If we are currently inspecting a DIFFERENT item, put it back first, then bring the new one
+        if (currentInspectedItem != null)
+        {
+            Sequence swapSeq = DOTween.Sequence();
+            
+            // 1. Move old item back
+            swapSeq.Append(currentInspectedItem.itemModel.transform.DOMove(currentInspectedItem.originalTablePos, 0.4f).SetEase(Ease.OutQuad));
+            swapSeq.Join(currentInspectedItem.itemModel.transform.DORotate(currentInspectedItem.originalTableRot, 0.4f).SetEase(Ease.OutQuad));
+
+            // 2. Assign and move new item in
+            swapSeq.AppendCallback(() => currentInspectedItem = item);
+            swapSeq.Append(item.itemModel.transform.DOMove(inspectPoint.position, 0.5f).SetEase(Ease.OutQuad));
+            swapSeq.Join(item.itemModel.transform.DORotate(inspectPoint.eulerAngles, 0.5f).SetEase(Ease.OutQuad));
+        }
+        else
+        {
+            // Just bring it up normally
+            currentInspectedItem = item;
+            item.itemModel.transform.DOMove(inspectPoint.position, 0.5f).SetEase(Ease.OutQuad);
+            item.itemModel.transform.DORotate(inspectPoint.eulerAngles, 0.5f).SetEase(Ease.OutQuad);
+        }
     }
 
     public void CloseInspectedItem()
@@ -377,16 +419,16 @@ public class DiegeticMenuController : MonoBehaviour
         inPlayMode = false;
         Sequence backSeq = DOTween.Sequence();
 
-        // --- NEW: Send ALL boxes back to the corner pile ---
-        if (gameBoxes != null && gameBoxes.Count > 0 && cornerPilePoint != null)
+        // --- NEW: Send ALL boxes back to their individual original positions ---
+        if (gameBoxes != null && gameBoxes.Count > 0)
         {
             foreach (var boxData in gameBoxes)
             {
                 GameObject box = boxData.boxRoot;
                 if (box != null)
                 {
-                    backSeq.Join(box.transform.DOMove(cornerPilePoint.position, 0.5f).SetEase(Ease.InOutQuad));
-                    backSeq.Join(box.transform.DORotate(cornerPilePoint.eulerAngles, 0.5f).SetEase(Ease.InOutQuad));
+                    backSeq.Join(box.transform.DOMove(boxData.boxOriginalPos, 0.5f).SetEase(Ease.InOutQuad));
+                    backSeq.Join(box.transform.DORotate(boxData.boxOriginalRot, 0.5f).SetEase(Ease.InOutQuad));
                 }
             }
         }
