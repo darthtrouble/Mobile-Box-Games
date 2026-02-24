@@ -42,23 +42,6 @@ public class MagazinePageTurner : MonoBehaviour
         }
     }
 
-    void Update()
-    {
-        // Safety check to prevent errors if no keyboard is connected
-        if (Keyboard.current == null) return;
-
-        // New Input System: Check if the right arrow was pressed exactly this frame
-        if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
-        {
-            NextPage(); // Replace with Antigravity's forward turn method name
-        }
-
-        // New Input System: Check if the left arrow was pressed exactly this frame
-        if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
-        {
-            PreviousPage(); // Replace with Antigravity's backward turn method name
-        }
-    }
 
     /// <summary>
     /// Turns the current page forward (from the right stack to the left stack).

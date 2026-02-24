@@ -21,18 +21,21 @@ public class CameraBob : MonoBehaviour
     public float zoomDuration = 0.8f;
 
     private Camera _cam;
-    private Vector3 _initialPosition;
-    private Vector3 _initialRotation;
+    [HideInInspector] public Vector3 initialPosition;
+    [HideInInspector] public Vector3 initialRotation;
+    public bool isEnabled = true;
 
     private void Awake()
     {
         _cam = GetComponent<Camera>();
-        _initialPosition = transform.localPosition;
-        _initialRotation = transform.localEulerAngles;
+        initialPosition = transform.localPosition;
+        initialRotation = transform.localEulerAngles;
     }
 
     private void Update()
     {
+        if (!isEnabled) return;
+
         // Calculate Perlin noise for smooth organic movement
         float time = Time.time * bobSpeed;
         
@@ -47,8 +50,8 @@ public class CameraBob : MonoBehaviour
         Vector3 posOffset = new Vector3(pX, pY, 0) * positionalIntensity;
         Vector3 rotOffset = new Vector3(rX, rY, 0) * rotationalIntensity;
 
-        transform.localPosition = _initialPosition + posOffset;
-        transform.localEulerAngles = _initialRotation + rotOffset;
+        transform.localPosition = initialPosition + posOffset;
+        transform.localEulerAngles = initialRotation + rotOffset;
     }
 
     /// <summary>
