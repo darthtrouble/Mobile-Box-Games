@@ -24,6 +24,7 @@ public class InteractableItem
 [System.Serializable]
 public class GameBoxData
 {
+    public string gameID;
     public GameObject boxRoot;      // The main parent box
     public Transform boxLid;        // The lid
     public Transform lobbyPaper;    // The paper nested inside
@@ -84,12 +85,22 @@ public class DiegeticMenuController : MonoBehaviour
     private bool inPlayMode = false; // Tracks if we are looking at boxes
     private bool isAtTable = false;  // Tracks if the intro has finished
     private bool isAnimatingIntro = false; // Locks input during the intro sequence
+    private bool isPlayingUno = false;     // Locks input during Uno game
 
     [Header("Lid Animation Offsets")]
     [Tooltip("How high the lid lifts up first")]
     public float lidLiftHeight = 0.5f;
     [Tooltip("Where the lid rests relative to the box (e.g., negative X for left)")]
     public Vector3 lidRestOffset = new Vector3(-1.2f, 0f, 0f);
+
+    [Header("Uno Transition Extras")]
+    public Transform sideTableTabletPoint;
+    public Transform sideTableMagazinePoint;
+    public Transform sideTableGameBoxesPoint;
+    public Transform unoCameraPoint;
+    public List<GameObject> unoSeatModels;
+    public List<Transform> unoSeatAnchors;
+    public float undergroundOffset = 2f;
 
     private void Start()
     {
@@ -117,7 +128,7 @@ public class DiegeticMenuController : MonoBehaviour
 
     void Update()
     {
-        if (Keyboard.current == null || isAnimatingIntro) return;
+        if (Keyboard.current == null || isAnimatingIntro || isPlayingUno) return;
 
         // Title Screen -> Table Transition
         if (Keyboard.current.spaceKey.wasPressedThisFrame && !isAtTable)
@@ -128,7 +139,7 @@ public class DiegeticMenuController : MonoBehaviour
         if (!isAtTable) return; // Ignore other inputs if not at table
 
         // Play Mode Transition
-        if (Keyboard.current.pKey.wasPressedThisFrame && !inPlayMode)
+        if (Keyboard.current.digit3Key.wasPressedThisFrame && !inPlayMode && currentInspectedItem == null)
         {
             TransitionToPlayMode(); 
         }
@@ -149,32 +160,42 @@ public class DiegeticMenuController : MonoBehaviour
             OpenLobby(); 
         }
 
+        // Select Current Box
+        if (Keyboard.current.digit4Key.wasPressedThisFrame && inPlayMode)
+        {
+            if (gameBoxes != null && gameBoxes.Count > 0)
+            {
+                if (string.Equals(gameBoxes[currentGameIndex].gameID, "UNO", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    StartUnoGame();
+                }
+            }
+        }
+
         // Pick up items (Only if not in play mode)
         if (!inPlayMode)
         {
-            if (Keyboard.current.sKey.wasPressedThisFrame)
+            if (Keyboard.current.digit1Key.wasPressedThisFrame)
             {
                 InspectItem(tabletItem); 
             }
-            if (Keyboard.current.mKey.wasPressedThisFrame)
+            if (Keyboard.current.digit2Key.wasPressedThisFrame)
             {
                 InspectItem(magazineItem); 
             }
         }
 
-        // Put items down / Go back
-        if (Keyboard.current.bKey.wasPressedThisFrame)
-        {
-            if (currentInspectedItem != null) CloseInspectedItem(); 
-        }
-        
-        // Master Revert
+        // Master Revert / Put Down
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            if (isLobbyPaperInspected) 
+            if (currentInspectedItem != null) 
+                CloseInspectedItem(); 
+            else if (isLobbyPaperInspected) 
                 CloseLobby(); // If paper is up, just close the box first
             else if (inPlayMode) 
                 BackToMainMenu(); // If boxes are in center, return to normal table
+            else
+                BackToTitleScreen(); // If at normal table, return to title screen
         }
     }
 
@@ -222,6 +243,34 @@ public class DiegeticMenuController : MonoBehaviour
                 isAnimatingIntro = false;
             });
         }
+    }
+
+    public void BackToTitleScreen()
+    {
+        if (mainCam == null || cameraStartPoint == null) return;
+
+        isAtTable = false;
+        isAnimatingIntro = true; // Lock input during animation
+        CameraBob camBob = mainCam.GetComponent<CameraBob>();
+
+        if (camBob != null) camBob.isEnabled = false;
+
+        Sequence outroSeq = DOTween.Sequence();
+        
+        // Smoothly move and rotate back to the start point
+        outroSeq.Append(mainCam.transform.DOMove(cameraStartPoint.position, 1.5f).SetEase(Ease.InOutSine));
+        outroSeq.Join(mainCam.transform.DORotate(cameraStartPoint.eulerAngles, 1.5f).SetEase(Ease.InOutSine));
+
+        outroSeq.OnComplete(() =>
+        {
+            if (camBob != null)
+            {
+                camBob.initialPosition = mainCam.transform.localPosition;
+                camBob.initialRotation = mainCam.transform.localEulerAngles;
+                camBob.isEnabled = true;
+            }
+            isAnimatingIntro = false;
+        });
     }
 
     public void InspectItem(InteractableItem item)
@@ -445,6 +494,76 @@ public class DiegeticMenuController : MonoBehaviour
         {
             backSeq.Join(magazineItem.itemModel.transform.DOMove(magazineItem.originalTablePos, 0.5f).SetEase(Ease.InOutQuad));
             backSeq.Join(magazineItem.itemModel.transform.DORotate(magazineItem.originalTableRot, 0.5f).SetEase(Ease.InOutQuad));
+        }
+    }
+
+    public void StartUnoGame()
+    {
+        isPlayingUno = true;
+        Sequence unoSeq = DOTween.Sequence();
+
+        // 1. Clear the Table (Tablet & Magazine to side table)
+        if (tabletItem?.itemModel != null && sideTableTabletPoint != null)
+        {
+            unoSeq.Insert(0, tabletItem.itemModel.transform.DOMove(sideTableTabletPoint.position, 1f).SetEase(Ease.InOutBack));
+            unoSeq.Insert(0, tabletItem.itemModel.transform.DORotate(sideTableTabletPoint.eulerAngles, 1f).SetEase(Ease.InOutBack));
+        }
+
+        if (magazineItem?.itemModel != null && sideTableMagazinePoint != null)
+        {
+            unoSeq.Insert(0, magazineItem.itemModel.transform.DOMove(sideTableMagazinePoint.position, 1f).SetEase(Ease.InOutBack));
+            unoSeq.Insert(0, magazineItem.itemModel.transform.DORotate(sideTableMagazinePoint.eulerAngles, 1f).SetEase(Ease.InOutBack));
+        }
+
+        // 2. Clear Game Boxes to side table
+        if (gameBoxes != null && sideTableGameBoxesPoint != null)
+        {
+            foreach (var boxData in gameBoxes)
+            {
+                if (boxData.boxRoot != null)
+                {
+                    unoSeq.Insert(0, boxData.boxRoot.transform.DOMove(sideTableGameBoxesPoint.position, 1f).SetEase(Ease.InOutBack));
+                    unoSeq.Insert(0, boxData.boxRoot.transform.DORotate(sideTableGameBoxesPoint.eulerAngles, 1f).SetEase(Ease.InOutBack));
+                }
+            }
+        }
+
+        // 3. Move the Camera
+        if (mainCam != null && unoCameraPoint != null)
+        {
+            CameraBob camBob = mainCam.GetComponent<CameraBob>();
+            if (camBob != null) camBob.isEnabled = false;
+
+            unoSeq.Insert(0, mainCam.transform.DOMove(unoCameraPoint.position, 1.5f).SetEase(Ease.InOutSine));
+            unoSeq.Insert(0, mainCam.transform.DORotate(unoCameraPoint.eulerAngles, 1.5f).SetEase(Ease.InOutSine));
+            
+            unoSeq.OnComplete(() =>
+            {
+                if (camBob != null)
+                {
+                    camBob.initialPosition = mainCam.transform.localPosition;
+                    camBob.initialRotation = mainCam.transform.localEulerAngles;
+                    camBob.isEnabled = true;
+                }
+            });
+        }
+
+        // 4. Seat Animation
+        if (unoSeatModels != null && unoSeatAnchors != null)
+        {
+            for (int i = 0; i < unoSeatModels.Count; i++)
+            {
+                if (i < unoSeatAnchors.Count && unoSeatModels[i] != null && unoSeatAnchors[i] != null)
+                {
+                    // Snap to below table
+                    Vector3 anchorPos = unoSeatAnchors[i].position;
+                    unoSeatModels[i].transform.position = anchorPos + (Vector3.down * undergroundOffset);
+                    unoSeatModels[i].transform.rotation = unoSeatAnchors[i].rotation;
+
+                    // Tween up after delay
+                    unoSeq.Insert(0.5f, unoSeatModels[i].transform.DOMove(anchorPos, 1f).SetEase(Ease.OutBack));
+                }
+            }
         }
     }
 }
