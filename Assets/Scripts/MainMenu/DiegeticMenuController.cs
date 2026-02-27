@@ -94,6 +94,8 @@ public class DiegeticMenuController : MonoBehaviour
     public Vector3 lidRestOffset = new Vector3(-1.2f, 0f, 0f);
 
     [Header("Uno Transition Extras")]
+    public UnoDeckManager unoDeckManager;
+    public PlayerHand player1Hand;
     public Transform sideTableTabletPoint;
     public Transform sideTableMagazinePoint;
     public Transform sideTableGameBoxesPoint;
@@ -128,7 +130,7 @@ public class DiegeticMenuController : MonoBehaviour
 
     void Update()
     {
-        if (Keyboard.current == null || isAnimatingIntro || isPlayingUno) return;
+        if (Keyboard.current == null || isAnimatingIntro) return;
 
         // Title Screen -> Table Transition
         if (Keyboard.current.spaceKey.wasPressedThisFrame && !isAtTable)
@@ -137,6 +139,22 @@ public class DiegeticMenuController : MonoBehaviour
         }
 
         if (!isAtTable) return; // Ignore other inputs if not at table
+
+        // Uno Draw Card Test (Allow this during Uno Game)
+        if (Keyboard.current.digit5Key.wasPressedThisFrame && isPlayingUno)
+        {
+            if (unoDeckManager != null && player1Hand != null)
+            {
+                UnoCard drawnCard = unoDeckManager.DrawTopCard();
+                if (drawnCard != null)
+                {
+                    player1Hand.AddCard(drawnCard);
+                }
+            }
+        }
+
+        // Return if playing uno so we don't trigger carousel actions
+        if (isPlayingUno) return;
 
         // Play Mode Transition
         if (Keyboard.current.digit3Key.wasPressedThisFrame && !inPlayMode && currentInspectedItem == null)
@@ -171,6 +189,7 @@ public class DiegeticMenuController : MonoBehaviour
                 }
             }
         }
+
 
         // Pick up items (Only if not in play mode)
         if (!inPlayMode)
@@ -502,6 +521,8 @@ public class DiegeticMenuController : MonoBehaviour
         isPlayingUno = true;
         Sequence unoSeq = DOTween.Sequence();
 
+        GameBoxData currentBox = gameBoxes[currentGameIndex];
+
         // 1. Clear the Table (Tablet & Magazine to side table)
         if (tabletItem?.itemModel != null && sideTableTabletPoint != null)
         {
@@ -515,12 +536,12 @@ public class DiegeticMenuController : MonoBehaviour
             unoSeq.Insert(0, magazineItem.itemModel.transform.DORotate(sideTableMagazinePoint.eulerAngles, 1f).SetEase(Ease.InOutBack));
         }
 
-        // 2. Clear Game Boxes to side table
+        // 2. Clear Game Boxes to side table (EXCEPT currentBox)
         if (gameBoxes != null && sideTableGameBoxesPoint != null)
         {
             foreach (var boxData in gameBoxes)
             {
-                if (boxData.boxRoot != null)
+                if (boxData != currentBox && boxData.boxRoot != null)
                 {
                     unoSeq.Insert(0, boxData.boxRoot.transform.DOMove(sideTableGameBoxesPoint.position, 1f).SetEase(Ease.InOutBack));
                     unoSeq.Insert(0, boxData.boxRoot.transform.DORotate(sideTableGameBoxesPoint.eulerAngles, 1f).SetEase(Ease.InOutBack));
@@ -564,6 +585,43 @@ public class DiegeticMenuController : MonoBehaviour
                     unoSeq.Insert(0.5f, unoSeatModels[i].transform.DOMove(anchorPos, 1f).SetEase(Ease.OutBack));
                 }
             }
+        }
+
+        // 5. The Box Sequence
+        Sequence boxSeq = DOTween.Sequence();
+        
+        // Wait for camera to settle
+        boxSeq.AppendInterval(1f);
+        
+        // Open the lid
+        if (currentBox.boxLid != null)
+        {
+            boxSeq.Append(currentBox.boxLid.DOLocalMove(currentBox.lidOriginalLocalPos + (Vector3.up * lidLiftHeight), 0.4f).SetEase(Ease.OutBack));
+        }
+
+        // Call the deck manager
+        boxSeq.AppendCallback(() => 
+        { 
+            if (unoDeckManager != null && currentBox.boxRoot != null) 
+            {
+                unoDeckManager.SpawnDeckFromBox(currentBox.boxRoot.transform); 
+            }
+        });
+
+        // Wait for cards to fly out
+        boxSeq.AppendInterval(2.5f);
+
+        // Close the lid
+        if (currentBox.boxLid != null)
+        {
+            boxSeq.Append(currentBox.boxLid.DOLocalMove(currentBox.lidOriginalLocalPos, 0.4f).SetEase(Ease.InBack));
+        }
+
+        // Move the empty box to the side table
+        if (currentBox.boxRoot != null && sideTableGameBoxesPoint != null)
+        {
+            boxSeq.Append(currentBox.boxRoot.transform.DOMove(sideTableGameBoxesPoint.position, 1f).SetEase(Ease.InOutBack));
+            boxSeq.Join(currentBox.boxRoot.transform.DORotate(sideTableGameBoxesPoint.eulerAngles, 1f).SetEase(Ease.InOutBack));
         }
     }
 }
