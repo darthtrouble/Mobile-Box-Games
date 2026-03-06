@@ -124,7 +124,7 @@ public class UnoDeckManager : MonoBehaviour
             discardCard.transform.SetParent(discardPileAnchor);
             discardCard.transform.DOKill();
             discardCard.transform.DOLocalMove(Vector3.zero, 0.4f).SetEase(Ease.OutBack);
-            float randomMessyTilt = UnityEngine.Random.Range(-15f, 15f);
+            float randomMessyTilt = UnityEngine.Random.Range(0, 0);
             discardCard.transform.DOLocalRotate(new Vector3(0, 0, randomMessyTilt), 0.4f).SetEase(Ease.OutBack); 
         }
 

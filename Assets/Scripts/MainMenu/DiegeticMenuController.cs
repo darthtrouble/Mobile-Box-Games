@@ -137,15 +137,7 @@ public class DiegeticMenuController : MonoBehaviour
 
         if (!isAtTable) return; 
 
-        if (Keyboard.current.digit5Key.wasPressedThisFrame && isPlayingUno)
-        {
-            if (unoDeckManager != null && player1Hand != null)
-            {
-                UnoCard drawnCard = unoDeckManager.DrawTopCard();
-                if (drawnCard != null) player1Hand.AddCard(drawnCard);
-            }
-        }
-
+        // (Removed the '5' key test draw here)
         if (isPlayingUno) return;
 
         if (Keyboard.current.digit3Key.wasPressedThisFrame && !inPlayMode && currentInspectedItem == null)
@@ -162,15 +154,16 @@ public class DiegeticMenuController : MonoBehaviour
             PreviousGame(); 
         }
 
-        if (Keyboard.current.oKey.wasPressedThisFrame && inPlayMode && !isLobbyPaperInspected)
-            OpenLobby(); 
-
-        if (Keyboard.current.digit4Key.wasPressedThisFrame && inPlayMode)
+        // '4' now specifically opens the Lobby Paper for the UNO box, instead of instantly starting the game.
+        // (Removed the 'O' key entirely)
+        if (Keyboard.current.digit4Key.wasPressedThisFrame && inPlayMode && !isLobbyPaperInspected)
         {
             if (gameBoxes != null && gameBoxes.Count > 0)
             {
                 if (string.Equals(gameBoxes[currentGameIndex].gameID, "UNO", System.StringComparison.OrdinalIgnoreCase))
-                    StartUnoGame();
+                {
+                    OpenLobby(); 
+                }
             }
         }
 
