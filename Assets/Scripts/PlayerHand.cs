@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 
 public class PlayerHand : MonoBehaviour
 {
+    public UnoDeckManager deckManager;
     public List<UnoCard> cardsInHand = new List<UnoCard>();
 
     [Header("Fan Settings")]
@@ -66,6 +67,22 @@ public class PlayerHand : MonoBehaviour
         {
             hoveredIndex = newHoveredIndex;
             UpdateHandVisuals();
+        }
+
+        UnoCard hoveredCard = hoveredIndex != -1 && hoveredIndex < cardsInHand.Count ? cardsInHand[hoveredIndex] : null;
+
+        // Left Click to Play Card
+        if (Mouse.current.leftButton.wasPressedThisFrame && hoveredCard != null)
+        {
+            if (deckManager != null)
+            {
+                deckManager.PlayCard(hoveredCard, this);
+                hoveredIndex = -1; // Clear the hover state so it doesn't get stuck
+            }
+            else
+            {
+                Debug.LogWarning("Deck Manager is not assigned to the PlayerHand!");
+            }
         }
     }
 

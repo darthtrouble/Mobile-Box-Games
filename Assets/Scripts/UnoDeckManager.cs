@@ -44,7 +44,7 @@ public class UnoDeckManager : MonoBehaviour
 
         isDeckReady = false;
 
-        GenerateDeck();
+        GenerateDeck(boxTransform);
 
         // Fisher-Yates Shuffle
         for (int i = currentDeck.Count - 1; i > 0; i--)
@@ -123,51 +123,76 @@ public class UnoDeckManager : MonoBehaviour
             discardCard.isFaceUp = true;
             discardCard.transform.SetParent(discardPileAnchor);
             discardCard.transform.DOKill();
-            discardCard.transform.DOLocalMove(Vector3.zero, 0.4f).SetEase(Ease.OutBack);
-            float randomMessyTilt = UnityEngine.Random.Range(0, 0);
-            discardCard.transform.DOLocalRotate(new Vector3(0, 0, randomMessyTilt), 0.4f).SetEase(Ease.OutBack); 
+            
+            // Disable the collider so the PlayerHand raycast ignores it forever
+            Collider col = discardCard.GetComponent<Collider>();
+            if (col != null) col.enabled = false;
+            
+            float randomX = UnityEngine.Random.Range(-0.015f, 0.015f);
+            float randomZ = UnityEngine.Random.Range(-0.015f, 0.015f);
+            float heightOffset = discardPile.Count * 0.0002f; 
+            
+            // Forced Vector3.up so it stacks perfectly even if the anchor is rotated wrong
+            Vector3 worldPos = discardPileAnchor.position 
+                + (Vector3.up * heightOffset) 
+                + (discardPileAnchor.right * randomX) 
+                + (discardPileAnchor.forward * randomZ);
+
+            discardCard.transform.DOMove(worldPos, 0.4f).SetEase(Ease.OutQuad);
+            discardCard.transform.DORotate(discardPileAnchor.eulerAngles, 0.4f).SetEase(Ease.OutQuad);
         }
 
         if (tableCameraLook != null) tableCameraLook.canLook = true;
     }
 
-    public void GenerateDeck()
+    public void GenerateDeck(Transform boxTransform)
     {
         currentDeck.Clear();
-        CardColor[] mainColors = { CardColor.Red, CardColor.Blue, CardColor.Green, CardColor.Yellow };
+        
+        // Standard UNO Colors
+        CardColor[] colors = { CardColor.Red, CardColor.Blue, CardColor.Green, CardColor.Yellow };
 
-        foreach (CardColor color in mainColors)
+        foreach (CardColor color in colors)
         {
-            CreateCard(color, CardType.Zero);
-            CardType[] doubles = { CardType.One, CardType.Two, CardType.Three, CardType.Four, CardType.Five, CardType.Six, CardType.Seven, CardType.Eight, CardType.Nine, CardType.Skip, CardType.Reverse, CardType.DrawTwo };
-            
-            foreach (CardType type in doubles)
+            // 1. Create the single '0' card
+            GenerateSingleCard(color, CardType.Number, 0, boxTransform);
+
+            // 2. Create two of each number from 1 to 9
+            for (int i = 1; i <= 9; i++)
             {
-                CreateCard(color, type);
-                CreateCard(color, type);
+                GenerateSingleCard(color, CardType.Number, i, boxTransform);
+                GenerateSingleCard(color, CardType.Number, i, boxTransform);
+            }
+
+            // 3. Create two of each action card
+            for (int i = 0; i < 2; i++)
+            {
+                GenerateSingleCard(color, CardType.Skip, -1, boxTransform);
+                GenerateSingleCard(color, CardType.Reverse, -1, boxTransform);
+                GenerateSingleCard(color, CardType.DrawTwo, -1, boxTransform);
             }
         }
 
+        // 4. Create the 8 Wild Cards (4 regular, 4 draw-four)
         for (int i = 0; i < 4; i++)
         {
-            CreateCard(CardColor.Wild, CardType.Wild);
-            CreateCard(CardColor.Wild, CardType.WildDrawFour);
+            GenerateSingleCard(CardColor.Wild, CardType.Wild, -1, boxTransform);
+            GenerateSingleCard(CardColor.Wild, CardType.WildDrawFour, -1, boxTransform);
         }
     }
 
-    private void CreateCard(CardColor color, CardType type)
+    private void GenerateSingleCard(CardColor color, CardType type, int value, Transform spawnPoint)
     {
-        GameObject newCardObj = Instantiate(cardPrefab);
-        newCardObj.name = $"Card_{color}_{type}";
-        UnoCard cardScript = newCardObj.GetComponent<UnoCard>();
+        GameObject cardObj = Instantiate(cardPrefab, spawnPoint.position, spawnPoint.rotation);
+        cardObj.name = $"Card_{color}_{type}{(value >= 0 ? "_" + value : "")}";
+        UnoCard cardScript = cardObj.GetComponent<UnoCard>();
         
         if (cardScript != null)
         {
-            cardScript.cardColor = color;
-            cardScript.cardType = type;
+            cardScript.SetupCard(color, type, value);
             cardScript.isFaceUp = false;
+            currentDeck.Add(cardScript);
         }
-        currentDeck.Add(cardScript);
     }
 
     public UnoCard DrawTopCard()
@@ -194,5 +219,46 @@ public class UnoDeckManager : MonoBehaviour
         
         // If we checked the whole list and found nothing
         return null; 
+    }
+
+    public void PlayCard(UnoCard cardToPlay, PlayerHand sourceHand)
+    {
+        // 1. Remove from hand and fix the fan visually
+        sourceHand.cardsInHand.Remove(cardToPlay);
+        sourceHand.UpdateHandVisuals();
+
+        // 2. Add to discard pile
+        discardPile.Add(cardToPlay);
+        cardToPlay.transform.SetParent(discardPileAnchor);
+        cardToPlay.isFaceUp = true;
+
+        // 3. Animate the throw using World Space and OutQuad
+        cardToPlay.transform.DOKill(); 
+        
+        // Fix: Also kill any hover animations on the visual child and reset its local offset!
+        if (cardToPlay.transform.childCount > 0)
+        {
+            Transform visual = cardToPlay.transform.GetChild(0);
+            visual.DOKill();
+            visual.DOLocalMove(Vector3.zero, 0.2f).SetEase(Ease.OutQuad);
+            visual.localRotation = Quaternion.identity;
+        }
+        
+        // Disable the collider so the PlayerHand raycast ignores it forever
+        Collider col = cardToPlay.GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+        
+        float randomX = UnityEngine.Random.Range(-0.015f, 0.015f);
+        float randomZ = UnityEngine.Random.Range(-0.015f, 0.015f);
+        float heightOffset = discardPile.Count * 0.0002f; 
+        
+        // Forced Vector3.up so it stacks perfectly even if the anchor is rotated wrong
+        Vector3 worldPos = discardPileAnchor.position 
+            + (Vector3.up * heightOffset) 
+            + (discardPileAnchor.right * randomX) 
+            + (discardPileAnchor.forward * randomZ);
+
+        cardToPlay.transform.DOMove(worldPos, 0.4f).SetEase(Ease.OutQuad);
+        cardToPlay.transform.DORotate(discardPileAnchor.eulerAngles, 0.4f).SetEase(Ease.OutQuad);
     }
 }
