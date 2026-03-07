@@ -70,4 +70,36 @@ public class UnoCard : MonoBehaviour
             }
         }
     }
+
+    public void SetBlackoutMode(bool isBlackout)
+    {
+        if (isBlackout)
+        {
+            // Black out the front face
+            if (cardMeshRenderer != null)
+            {
+                Material[] cardMaterials = cardMeshRenderer.materials;
+                if (frontMaterialIndex >= 0 && frontMaterialIndex < cardMaterials.Length)
+                {
+                    cardMaterials[frontMaterialIndex].color = Color.black;
+                    cardMeshRenderer.materials = cardMaterials;
+                }
+            }
+
+            // Hide the text
+            if (cardText != null)
+            {
+                cardText.enabled = false;
+            }
+        }
+        else
+        {
+            // Restore text and color
+            if (cardText != null)
+            {
+                cardText.enabled = true;
+            }
+            UpdateVisuals();
+        }
+    }
 }

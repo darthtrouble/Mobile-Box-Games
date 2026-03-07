@@ -74,14 +74,43 @@ public class PlayerHand : MonoBehaviour
         // Left Click to Play Card
         if (Mouse.current.leftButton.wasPressedThisFrame && hoveredCard != null)
         {
-            if (deckManager != null)
+            // RACE CONDITION FIX:
+            // 1. Do we own it?
+            // 2. Is its collider actually active? (If it's flying from the deck, DeckClicker turned the collider OFF!)
+            Collider cardCol = hoveredCard.GetComponent<Collider>();
+            
+            if (cardsInHand.Contains(hoveredCard) && cardCol != null && cardCol.enabled)
             {
-                deckManager.PlayCard(hoveredCard, this);
-                hoveredIndex = -1; // Clear the hover state so it doesn't get stuck
+                if (deckManager != null)
+                {
+                    bool success = deckManager.TryPlayCard(hoveredCard, this);
+                    if (success)
+                    {
+                        hoveredIndex = -1; // Clear the hover state so it doesn't get stuck
+                    }
+                    else
+                    {
+                        // Rejection Shake Animation!
+                        if (hoveredCard.transform.childCount > 0)
+                        {
+                            Transform visual = hoveredCard.transform.GetChild(0);
+                            visual.DOKill();
+                            visual.DOShakePosition(0.3f, new Vector3(0.04f, 0, 0), 20, 90).OnComplete(() => 
+                            {
+                                visual.DOLocalMove(new Vector3(hoverHeight, hoverPullForward, 0), 0.1f);
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("Deck Manager is not assigned to the PlayerHand!");
+                }
             }
             else
             {
-                Debug.LogWarning("Deck Manager is not assigned to the PlayerHand!");
+                // If we don't own it, OR it's currently mid-flight, ignore the click entirely!
+                hoveredIndex = -1;
             }
         }
     }

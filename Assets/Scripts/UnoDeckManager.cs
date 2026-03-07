@@ -10,6 +10,7 @@ public class UnoDeckManager : MonoBehaviour
     public Transform drawPileAnchor;
     public Transform discardPileAnchor;
     public TableCameraLook tableCameraLook;
+    public WildColorPicker wildColorPicker;
 
     [Header("Physical Settings")]
     public float cardThickness = 0.016f;
@@ -18,6 +19,15 @@ public class UnoDeckManager : MonoBehaviour
     public List<UnoCard> currentDeck = new List<UnoCard>();
     public List<UnoCard> discardPile = new List<UnoCard>(); // NEW
     public bool isDeckReady = false;
+    public CardColor activeColor;
+    public CardType activeType;
+    public int activeValue;
+    
+    public int pendingDrawCount = 0; // Tracks if the player owes 2 or 4 cards
+
+    public bool isGameActive = false; // Locks the game during dealing
+    public int currentPlayerIndex = 0; // Tracks whose turn it is
+    public bool hasDrawnThisTurn = false; // Prevents spam-drawing
 
     [Header("Multiplayer Settings")]
     [Range(2, 6)]
@@ -80,6 +90,8 @@ public class UnoDeckManager : MonoBehaviour
 
     public void StartUnoGame()
     {
+        isGameActive = false;
+        
         // Setup the active players based on the player count
         activePlayers.Clear();
         for (int i = 0; i < playerCount; i++)
@@ -121,6 +133,7 @@ public class UnoDeckManager : MonoBehaviour
         {
             discardPile.Add(discardCard);
             discardCard.isFaceUp = true;
+            UpdateActiveState(discardCard);
             discardCard.transform.SetParent(discardPileAnchor);
             discardCard.transform.DOKill();
             
@@ -140,9 +153,23 @@ public class UnoDeckManager : MonoBehaviour
 
             discardCard.transform.DOMove(worldPos, 0.4f).SetEase(Ease.OutQuad);
             discardCard.transform.DORotate(discardPileAnchor.eulerAngles, 0.4f).SetEase(Ease.OutQuad);
+            
+            // If the very first card is a Wild or Wild Draw 4, trigger the UI!
+            if (discardCard.cardColor == CardColor.Wild)
+            {
+                if (wildColorPicker != null)
+                {
+                    wildColorPicker.ShowPicker();
+                }
+            }
         }
 
         if (tableCameraLook != null) tableCameraLook.canLook = true;
+        
+        currentPlayerIndex = 0; // Local player goes first!
+        hasDrawnThisTurn = false;
+        isGameActive = true; 
+        Debug.Log("<color=green>Dealing Finished! Game Started. Player 0's turn.</color>");
     }
 
     public void GenerateDeck(Transform boxTransform)
@@ -221,8 +248,34 @@ public class UnoDeckManager : MonoBehaviour
         return null; 
     }
 
-    public void PlayCard(UnoCard cardToPlay, PlayerHand sourceHand)
+    public bool TryPlayCard(UnoCard cardToPlay, PlayerHand sourceHand)
     {
+        // 1. Is the game actually running?
+        if (!isGameActive) return false;
+
+        // 2. Is it actually this player's turn?
+        if (activePlayers.Count > 0 && activePlayers[currentPlayerIndex] != sourceHand)
+        {
+            Debug.LogWarning("Hold up! It is not your turn!");
+            return false;
+        }
+
+        if (!IsValidMove(cardToPlay)) 
+        {
+            Debug.Log("Invalid Move! Does not match color or number.");
+            return false;
+        }
+        UpdateActiveState(cardToPlay);
+        
+        // If it's a Wild or Wild Draw 4, trigger the UI!
+        if (cardToPlay.cardColor == CardColor.Wild)
+        {
+            if (wildColorPicker != null)
+            {
+                wildColorPicker.ShowPicker();
+            }
+        }
+
         // 1. Remove from hand and fix the fan visually
         sourceHand.cardsInHand.Remove(cardToPlay);
         sourceHand.UpdateHandVisuals();
@@ -260,5 +313,98 @@ public class UnoDeckManager : MonoBehaviour
 
         cardToPlay.transform.DOMove(worldPos, 0.4f).SetEase(Ease.OutQuad);
         cardToPlay.transform.DORotate(discardPileAnchor.eulerAngles, 0.4f).SetEase(Ease.OutQuad);
+
+        NextTurn();
+
+        return true;
+    }
+
+    public void NextTurn()
+    {
+        currentPlayerIndex = (currentPlayerIndex + 1) % activePlayers.Count;
+        hasDrawnThisTurn = false;
+        Debug.Log($"<color=yellow>Turn Ended. Now Player {currentPlayerIndex}'s Turn!</color>");
+    }
+
+    public void UpdateActiveState(UnoCard card)
+    {
+        activeColor = card.cardColor;
+        activeType = card.cardType;
+        activeValue = card.cardValue;
+        Debug.Log($"<color=cyan>Active State Changed: {activeColor} | {activeType} | {activeValue}</color>");
+    }
+
+    public bool IsValidMove(UnoCard card)
+    {
+        if (card.cardColor == CardColor.Wild) return true; // Wilds are always valid
+        if (card.cardColor == activeColor) return true;    // Matching colors
+        if (card.cardType != CardType.Number && card.cardType == activeType) return true; // Matching actions (Skip on Skip)
+        if (card.cardType == CardType.Number && activeType == CardType.Number && card.cardValue == activeValue) return true; // Matching numbers
+        return false;
+    }
+
+    public void HandleDeckClick(PlayerHand clickingPlayer)
+    {
+        if (!isGameActive) return;
+        
+        if (activePlayers.Count > 0 && activePlayers[currentPlayerIndex] != clickingPlayer)
+        {
+            Debug.LogWarning("You cannot draw, it is not your turn!");
+            return;
+        }
+        
+        if (hasDrawnThisTurn)
+        {
+            Debug.LogWarning("You already drew this turn!");
+            return;
+        }
+        
+        hasDrawnThisTurn = true;
+
+        // "Draw 2" House Rule: If no pending penalty, draw up to 2 cards!
+        int amountToDraw = pendingDrawCount > 0 ? pendingDrawCount : 2; 
+
+        StartCoroutine(DrawMultipleSequence(clickingPlayer, amountToDraw));
+        
+        // Reset after paying the debt
+        if (pendingDrawCount > 0)
+        {
+            pendingDrawCount = 0; 
+        }
+    }
+
+    private System.Collections.IEnumerator DrawMultipleSequence(PlayerHand player, int amountToDraw)
+    {
+        for (int i = 0; i < amountToDraw; i++)
+        {
+            UnoCard drawnCard = DrawTopCard();
+            if (drawnCard != null)
+            {
+                // Disable collider and blackout visual during flight to prevent auto-playing!
+                Collider col = drawnCard.GetComponent<Collider>();
+                if (col != null) col.enabled = false;
+                drawnCard.SetBlackoutMode(true);
+
+                player.AddCard(drawnCard);
+                
+                // Start revealing routine
+                StartCoroutine(RevealCardAfterFlight(drawnCard));
+            }
+            yield return new WaitForSeconds(0.15f); // Nice rapid-fire draw animation!
+        }
+        
+        NextTurn();
+    }
+
+    private System.Collections.IEnumerator RevealCardAfterFlight(UnoCard card)
+    {
+        // Wait for the DOTween flight animation to finish (UpdateHandVisuals takes 0.4 seconds)
+        yield return new WaitForSeconds(0.45f);
+        
+        card.SetBlackoutMode(false); // Restore colors and text
+        
+        // Reactivate colliders so the hand hover raycast works again
+        Collider col = card.GetComponent<Collider>();
+        if (col != null) col.enabled = true;
     }
 }
