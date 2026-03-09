@@ -92,6 +92,10 @@ public class OpponentAI : MonoBehaviour
                 Debug.Log($"<color={bestColor}>AI chose {bestColor} because it has {maxCount} of them!</color>");
             }
 
+            // Reveal the card the moment the AI decides to play it
+            cardToPlay.SetBlackoutMode(false); 
+            
+            // Now play the card
             deckManager.TryPlayCard(cardToPlay, myHand);
         }
         else

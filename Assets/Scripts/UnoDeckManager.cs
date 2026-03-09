@@ -130,7 +130,7 @@ public class UnoDeckManager : MonoBehaviour
                     // and only AFTER it arrives.
                     if (p == 0) 
                     {
-                        StartCoroutine(RevealCardAfterDelay(c, 0.1f));
+                        StartCoroutine(RevealCardAfterDelay(c, 0.5f));
                     }
                 }
                 yield return new WaitForSeconds(0.1f); // Faster deal since there are more players
@@ -142,6 +142,7 @@ public class UnoDeckManager : MonoBehaviour
         UnoCard discardCard = DrawTopCard();
         if (discardCard != null)
         {
+            discardCard.SetBlackoutMode(false); // The first card MUST be visible!
             discardPile.Add(discardCard);
             discardCard.isFaceUp = true;
             UpdateActiveState(discardCard);
@@ -294,6 +295,8 @@ public class UnoDeckManager : MonoBehaviour
 
         // 2. Add to discard pile
         discardPile.Add(cardToPlay);
+        // Reveal the card immediately when played to the center
+        cardToPlay.SetBlackoutMode(false); 
         cardToPlay.transform.SetParent(discardPileAnchor);
         cardToPlay.isFaceUp = true;
 
