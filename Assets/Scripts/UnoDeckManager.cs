@@ -16,6 +16,7 @@ public class UnoDeckManager : MonoBehaviour
     public float cardThickness = 0.016f;
 
     [Header("Deck State")]
+    public int playDirection = 1; // 1 = clockwise, -1 = counter-clockwise
     public List<UnoCard> currentDeck = new List<UnoCard>();
     public List<UnoCard> discardPile = new List<UnoCard>(); // NEW
     public bool isDeckReady = false;
@@ -314,6 +315,9 @@ public class UnoDeckManager : MonoBehaviour
         cardToPlay.transform.DOMove(worldPos, 0.4f).SetEase(Ease.OutQuad);
         cardToPlay.transform.DORotate(discardPileAnchor.eulerAngles, 0.4f).SetEase(Ease.OutQuad);
 
+        // Apply any special action card effects right before passing the turn
+        ApplyCardEffect(cardToPlay);
+        
         NextTurn();
 
         return true;
@@ -321,9 +325,41 @@ public class UnoDeckManager : MonoBehaviour
 
     public void NextTurn()
     {
-        currentPlayerIndex = (currentPlayerIndex + 1) % activePlayers.Count;
+        // The extra + activePlayers.Count prevents negative index errors when going backwards!
+        currentPlayerIndex = (currentPlayerIndex + playDirection + activePlayers.Count) % activePlayers.Count;
         hasDrawnThisTurn = false;
-        Debug.Log($"<color=yellow>Turn Ended. Now Player {currentPlayerIndex}'s Turn!</color>");
+        Debug.Log($"<color=yellow>Turn Ended. Now Player {currentPlayerIndex}'s Turn! (Direction: {playDirection})</color>");
+    }
+
+    private void ApplyCardEffect(UnoCard card)
+    {
+        if (card.cardType == CardType.Reverse)
+        {
+            playDirection *= -1;
+            Debug.Log("<color=magenta>UNO REVERSE! Direction changed.</color>");
+            
+            // Official Rule: In a 2-player game, Reverse acts exactly like a Skip!
+            if (activePlayers.Count == 2)
+            {
+                NextTurn(); 
+            }
+        }
+        else if (card.cardType == CardType.Skip)
+        {
+            Debug.Log("<color=orange>PLAYER SKIPPED!</color>");
+            // We call NextTurn() once here. The TryPlayCard method will call it a SECOND time at the end, effectively leapfrogging the next player!
+            NextTurn(); 
+        }
+        else if (card.cardType == CardType.DrawTwo)
+        {
+            Debug.Log("<color=red>DRAW TWO PENDING!</color>");
+            pendingDrawCount += 2;
+        }
+        else if (card.cardType == CardType.WildDrawFour)
+        {
+            Debug.Log("<color=red>WILD DRAW FOUR PENDING!</color>");
+            pendingDrawCount += 4;
+        }
     }
 
     public void UpdateActiveState(UnoCard card)

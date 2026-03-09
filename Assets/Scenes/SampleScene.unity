@@ -20063,6 +20063,7 @@ MonoBehaviour:
   tableCameraLook: {fileID: 857065303}
   wildColorPicker: {fileID: 1951668171}
   cardThickness: 0.0015
+  playDirection: 1
   currentDeck: []
   discardPile: []
   isDeckReady: 0
