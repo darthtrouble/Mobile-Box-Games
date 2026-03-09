@@ -18677,6 +18677,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1809063374}
   - component: {fileID: 1809063375}
+  - component: {fileID: 1809063376}
   m_Layer: 0
   m_Name: Anchor_PlayerHand_2
   m_TagString: Untagged
@@ -18722,6 +18723,21 @@ MonoBehaviour:
   neighborHoverHeight: 0.1
   hoverPullForward: 0.1
   isLocalPlayer: 0
+--- !u!114 &1809063376
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1809063373}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c1df3569c896bc446bec7718efec414b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OpponentAI
+  deckManager: {fileID: 1951668169}
+  myHand: {fileID: 1809063375}
+  thinkTime: 1.5
 --- !u!1 &1812931128
 GameObject:
   m_ObjectHideFlags: 0
@@ -20070,6 +20086,7 @@ MonoBehaviour:
   activeColor: 0
   activeType: 0
   activeValue: 0
+  isWaitingForColorPicker: 0
   pendingDrawCount: 0
   isGameActive: 0
   currentPlayerIndex: 0
@@ -20082,6 +20099,7 @@ MonoBehaviour:
   - {fileID: 1916230143}
   - {fileID: 820867190}
   - {fileID: 1655488027}
+  activePlayers: []
 --- !u!4 &1951668170
 Transform:
   m_ObjectHideFlags: 0

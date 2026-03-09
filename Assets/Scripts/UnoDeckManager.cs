@@ -24,6 +24,7 @@ public class UnoDeckManager : MonoBehaviour
     public CardType activeType;
     public int activeValue;
     
+    public bool isWaitingForColorPicker = false;
     public int pendingDrawCount = 0; // Tracks if the player owes 2 or 4 cards
 
     public bool isGameActive = false; // Locks the game during dealing
@@ -37,7 +38,7 @@ public class UnoDeckManager : MonoBehaviour
     [Tooltip("Assign in this priority: 1(Me), 2(Top), 3(TopRight), 4(TopLeft), 5(BotRight), 6(BotLeft)")]
     public List<PlayerHand> seatingPriority = new List<PlayerHand>();
     
-    private List<PlayerHand> activePlayers = new List<PlayerHand>();
+    public List<PlayerHand> activePlayers = new List<PlayerHand>();
 
     void Awake()
     {
@@ -70,7 +71,9 @@ public class UnoDeckManager : MonoBehaviour
 
         for (int i = 0; i < currentDeck.Count; i++)
         {
-            Transform cardTrans = currentDeck[i].transform;
+            UnoCard card = currentDeck[i];
+            card.SetBlackoutMode(true); // Hide the card face immediately
+            Transform cardTrans = card.transform;
 
             // 1. Instantly snap to the box
             cardTrans.position = boxTransform.position;
@@ -114,14 +117,21 @@ public class UnoDeckManager : MonoBehaviour
         // Deal 7 cards to each active player in a circle
         for (int round = 0; round < 7; round++)
         {
-            foreach (PlayerHand player in activePlayers)
+            for (int p = 0; p < activePlayers.Count; p++)
             {
+                PlayerHand player = activePlayers[p];
                 UnoCard c = DrawTopCard();
                 if (c != null) 
                 {
-                    // If it's an opponent, we probably want the cards face DOWN. 
-                    // We will temporarily leave them face UP for your testing so you can see the fans work!
+                    c.SetBlackoutMode(true); // Ensure it stays black during flight
                     player.AddCard(c); 
+                    
+                    // We need to reveal the card ONLY if it belongs to the Local Player (Player 0)
+                    // and only AFTER it arrives.
+                    if (p == 0) 
+                    {
+                        StartCoroutine(RevealCardAfterDelay(c, 0.1f));
+                    }
                 }
                 yield return new WaitForSeconds(0.1f); // Faster deal since there are more players
             }
@@ -273,6 +283,7 @@ public class UnoDeckManager : MonoBehaviour
         {
             if (wildColorPicker != null)
             {
+                isWaitingForColorPicker = true;
                 wildColorPicker.ShowPicker();
             }
         }
@@ -372,10 +383,27 @@ public class UnoDeckManager : MonoBehaviour
 
     public bool IsValidMove(UnoCard card)
     {
-        if (card.cardColor == CardColor.Wild) return true; // Wilds are always valid
-        if (card.cardColor == activeColor) return true;    // Matching colors
-        if (card.cardType != CardType.Number && card.cardType == activeType) return true; // Matching actions (Skip on Skip)
-        if (card.cardType == CardType.Number && activeType == CardType.Number && card.cardValue == activeValue) return true; // Matching numbers
+        // 1. STACKING RULE: If there is a pending penalty, you MUST play a matching draw card or draw.
+        if (pendingDrawCount > 0)
+        {
+            // If it's a +2, you can only play another +2 or a +4
+            if (activeType == CardType.DrawTwo)
+            {
+                return (card.cardType == CardType.DrawTwo || card.cardType == CardType.WildDrawFour);
+            }
+            // If it's a +4, you can only play another +4 (Hardcore mode!)
+            if (activeType == CardType.WildDrawFour)
+            {
+                return (card.cardType == CardType.WildDrawFour);
+            }
+        }
+
+        // 2. NORMAL RULES: Only if no penalty is pending
+        if (card.cardColor == CardColor.Wild) return true;
+        if (card.cardColor == activeColor) return true;
+        if (card.cardType != CardType.Number && card.cardType == activeType) return true;
+        if (card.cardType == CardType.Number && activeType == CardType.Number && card.cardValue == activeValue) return true;
+        
         return false;
     }
 
@@ -442,5 +470,11 @@ public class UnoDeckManager : MonoBehaviour
         // Reactivate colliders so the hand hover raycast works again
         Collider col = card.GetComponent<Collider>();
         if (col != null) col.enabled = true;
+    }
+
+    private System.Collections.IEnumerator RevealCardAfterDelay(UnoCard card, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (card != null) card.SetBlackoutMode(false);
     }
 }

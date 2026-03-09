@@ -48,6 +48,7 @@ public class WildColorPicker : MonoBehaviour
         }
         
         if (pickerCanvas != null) pickerCanvas.SetActive(false);
+        if (deckManager != null) deckManager.isWaitingForColorPicker = false;
     }
 
 }
