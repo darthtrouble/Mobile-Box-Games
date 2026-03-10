@@ -7,6 +7,7 @@ public class LobbyManager : MonoBehaviour
     [Header("System References")]
     public UnoDeckManager deckManager;
     public DiegeticMenuController menuController;
+    public HumanNeckController neckController;
 
     [Header("UI Elements")]
     public TextMeshProUGUI playerCountText;
@@ -59,6 +60,11 @@ public class LobbyManager : MonoBehaviour
 
     void StartGame()
     {
+        if (neckController != null)
+        {
+            neckController.OnGameStart();
+        }
+
         if (menuController != null)
         {
             // Auto-close the paper and trigger the game sequence!

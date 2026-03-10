@@ -36,22 +36,16 @@ public class CameraBob : MonoBehaviour
     {
         if (!isEnabled) return;
 
-        // Calculate Perlin noise for smooth organic movement
         float time = Time.time * bobSpeed;
-        
-        // Positional sway
         float pX = (Mathf.PerlinNoise(time, 1f) - 0.5f) * 2f;
         float pY = (Mathf.PerlinNoise(1f, time) - 0.5f) * 2f;
-        
-        // Rotational sway (using different noise offsets so it's not parallel to pos)
         float rX = (Mathf.PerlinNoise(time + 10f, 1f) - 0.5f) * 2f;
         float rY = (Mathf.PerlinNoise(1f, time + 10f) - 0.5f) * 2f;
 
-        Vector3 posOffset = new Vector3(pX, pY, 0) * positionalIntensity;
-        Vector3 rotOffset = new Vector3(rX, rY, 0) * rotationalIntensity;
-
-        transform.localPosition = initialPosition + posOffset;
-        transform.localEulerAngles = initialRotation + rotOffset;
+        // CHANGE: Instead of "InitialPosition + offset", we just set the local offset.
+        // This allows the Parent (Neck) to move the camera freely.
+        transform.localPosition = new Vector3(pX, pY, 0) * positionalIntensity;
+        transform.localRotation = Quaternion.Euler(new Vector3(rX, rY, 0) * rotationalIntensity);
     }
 
     /// <summary>

@@ -10501,7 +10501,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 857065302}
-  - component: {fileID: 857065303}
+  - component: {fileID: 857065304}
   m_Layer: 0
   m_Name: Camera_Neck
   m_TagString: Untagged
@@ -10525,7 +10525,7 @@ Transform:
   - {fileID: 330585546}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 66.513, y: -90, z: 0}
---- !u!114 &857065303
+--- !u!114 &857065304
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10534,13 +10534,17 @@ MonoBehaviour:
   m_GameObject: {fileID: 857065301}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 415abfd588f51634a869997d3e20bc00, type: 3}
+  m_Script: {fileID: 11500000, guid: 4514ed44e489cd7489f1f3a207042dde, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TableCameraLook
-  lookSpeed: 0.15
-  maxYaw: 45
-  maxPitch: 20
-  canLook: 0
+  m_EditorClassIdentifier: Assembly-CSharp::HumanNeckController
+  handAnchor: {fileID: 77766987}
+  deckManager: {fileID: 1951668169}
+  sensitivity: 0.15
+  xLimit: {x: -40, y: 40}
+  yLimit: {x: -70, y: 70}
+  yawOffset: -90
+  gameStarted: 0
+  isFreeLooking: 1
 --- !u!1 &905557729
 GameObject:
   m_ObjectHideFlags: 0
@@ -20076,7 +20080,7 @@ MonoBehaviour:
   cardPrefab: {fileID: 705375300229305964, guid: 0ff4c0781e6417f4ebb97fb0f6780d43, type: 3}
   drawPileAnchor: {fileID: 784956622}
   discardPileAnchor: {fileID: 822403616}
-  tableCameraLook: {fileID: 857065303}
+  neckController: {fileID: 857065304}
   wildColorPicker: {fileID: 1951668171}
   cardThickness: 0.0015
   playDirection: 1
@@ -20089,6 +20093,7 @@ MonoBehaviour:
   isWaitingForColorPicker: 0
   pendingDrawCount: 0
   isGameActive: 0
+  canInteract: 1
   currentPlayerIndex: 0
   hasDrawnThisTurn: 0
   playerCount: 6
@@ -20822,6 +20827,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LobbyManager
   deckManager: {fileID: 1951668169}
   menuController: {fileID: 782328069}
+  neckController: {fileID: 0}
   playerCountText: {fileID: 696900770}
   btnMinus: {fileID: 1729393463}
   btnPlus: {fileID: 1925774729}

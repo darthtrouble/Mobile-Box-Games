@@ -9,7 +9,7 @@ public class UnoDeckManager : MonoBehaviour
     public GameObject cardPrefab;
     public Transform drawPileAnchor;
     public Transform discardPileAnchor;
-    public TableCameraLook tableCameraLook;
+    public HumanNeckController neckController;
     public WildColorPicker wildColorPicker;
 
     [Header("Physical Settings")]
@@ -28,6 +28,7 @@ public class UnoDeckManager : MonoBehaviour
     public int pendingDrawCount = 0; // Tracks if the player owes 2 or 4 cards
 
     public bool isGameActive = false; // Locks the game during dealing
+    public bool canInteract = true;   // Controlled by the NeckController
     public int currentPlayerIndex = 0; // Tracks whose turn it is
     public bool hasDrawnThisTurn = false; // Prevents spam-drawing
 
@@ -175,8 +176,11 @@ public class UnoDeckManager : MonoBehaviour
                 }
             }
         }
-
-        if (tableCameraLook != null) tableCameraLook.canLook = true;
+        if (neckController != null) 
+        {
+            neckController.OnGameStart();
+            Debug.Log("<color=cyan>Camera Unlocked! Right-Click to toggle view.</color>");
+        }
         
         currentPlayerIndex = 0; // Local player goes first!
         hasDrawnThisTurn = false;
@@ -262,6 +266,8 @@ public class UnoDeckManager : MonoBehaviour
 
     public bool TryPlayCard(UnoCard cardToPlay, PlayerHand sourceHand)
     {
+        if (!canInteract) return false;
+
         // 1. Is the game actually running?
         if (!isGameActive) return false;
 
@@ -412,6 +418,7 @@ public class UnoDeckManager : MonoBehaviour
 
     public void HandleDeckClick(PlayerHand clickingPlayer)
     {
+        if (!canInteract) return;
         if (!isGameActive) return;
         
         if (activePlayers.Count > 0 && activePlayers[currentPlayerIndex] != clickingPlayer)
